@@ -1,0 +1,132 @@
+#! /bin/bash
+# From Infinity Labs
+###############################################
+# gcc compilation aliases: c89, c99, debug mode, release mode 
+alias gc='clang-3.9 -std=c89 -ansi -Wall -pedantic -Werror -DNDEBUG'
+alias gcne='clang-3.9 -std=c89 -ansi -Wall -pedantic -DNDEBUG'
+alias gd='clang-3.9 -std=c89 -ansi -Wall -pedantic -Werror -D_DEBUG -g'
+alias gdne='clang-3.9 -std=c89 -ansi -Wall -pedantic -D_DEBUG -g'
+alias gne='clang-3.9 -ansi -Wall -pedantic -DNDEBUG'
+alias gc9='clang-3.9 -std=c99 -Wall -pedantic -Werror -DNDEBUG'
+alias gd9='clang-3.9 -std=c99 -Wall -pedantic -Werror -D_DEBUG -g'
+# c++ compilation aliases: c98, c11, debug mode, release mode 
+alias gdpp='clang++-3.9 -std=c++98 -Wall -pedantic -Werror -D_DEBUG -g'
+alias gcpp='clang++-3.9 -std=c++98 -Wall -pedantic -Werror -DNDEBUG'
+alias gdpp1='clang++-3.9 -std=c++11 -Wall -pedantic -Werror -D_DEBUG -g'
+alias gcpp1='clang++-3.9 -std=c++11 -Wall -pedantic -Werror -DNDEBUG'
+alias gdppne='clang++-3.9 -std=c++98 -Wall -pedantic -D_DEBUG -g'
+alias gcppne='clang++-3.9 -std=c++98 -Wall -pedantic -DNDEBUG'
+
+alias gppd='clang++ -std=c99 -Wall -pedantic -Werror -D_DEBUG -g'
+#
+# Valgrind alias
+alias vlg='valgrind -v --leak-check=yes --track-origins=yes'
+#
+# svn aliases: check in, update, log, add, status
+alias svc="sshpass -p 043367598 svn ci -m" 
+alias svu="sshpass -p 043367598 svn update" 
+alias svl="sshpass -p 043367598 svn log"
+alias svls="sshpass -p 043367598 svn list"
+alias svrm="svn delete"
+alias sva="svn add"
+alias svclc="svn cleanup"
+alias svstt="svn status"
+alias svcheckouthome="svn co svn+ssh://roy.niederberg@31.168.84.220/home/srv/svn/rd32/roy.niederberg ."
+alias svcheckoutlab="svn co svn+ssh://roy.niederberg@labotomy.local/home/srv/svn/rd32/roy.niederberg ."
+alias semrmall="ipcs -s ; ipcs -s | grep xyz | cut -d ' ' -f 2 | sed 's/^/-s /g' | xargs  ipcrm; ipcs -s"
+alias viewHfile='echo "#include <sys/types.h>" | gcc -E -x c -'
+
+
+# my Area
+################################################
+alias sinstall='sudo apt-get install';
+alias h='history';
+alias srm='rm -i';
+alias cddo='cd ~/svn/Proj/src/OS/';
+alias cddu='cd ~/svn/Proj/src/utils/';
+alias cdde='cd ~/svn/Proj/src/exercises/';
+alias cddp='cd ~/svn/Proj/src/cpp';
+alias cddd='cd ~/svn/Proj/src/design_pattern/';
+alias cddj='cd ~/svn/Proj/src/project/';
+alias cdd='cd ~/svn/Proj/src/';
+alias vitabs='vi -p';
+export PATH=$PATH:. ;
+alias tasks='cat /media/$USER/MIZI/tasks.txt';
+alias tasksedit='vi -p /media/$USER/MIZI/tasks.txt';
+
+function tasksadd {
+	echo $1;
+	echo " - ${1}" >> /media/$USER/MIZI/tasks.txt;
+	tasks;
+}
+
+function tasksrm {
+	let linenum=`tasks | wc -l`;
+	echo $1;
+	tasks;
+	sed -i "/$1/d" /media/$USER/MIZI/tasks.txt;
+	echo '-------------';
+	linenum=$(($linenum - `tasks | wc -l`));
+	tasks;
+	echo "Tasks removed: $linenum"; 
+}
+
+alias myfunc='. /media/$USER/MIZI/.myfuncs'
+alias myfuncedit='vi -p /media/$USER/MIZI/.myfuncs'
+alias vimrcedit='vi -p /media/$USER/MIZI/.vimrc'
+
+# Create new file for exercises - .c .h and _test.c files if not exist
+function newEx {
+	if [ ! -z $1 ] && [ ! -f $1.c ] && [ ! -f $1.h ] && [ ! -f $1_test.c ]
+	then
+		touch $1.c $1.h $1_test.c;
+		cat /media/$USER/MIZI/header_file.txt > $1.h;
+		cat /media/$USER/MIZI/header_file.txt > $1.c;
+		cat /media/$USER/MIZI/header_file.txt > $1_test.c;
+		ls;
+		sva $1.c $1.h $1_test.c;
+		svc "Templet Files" $1.c $1.h $1_test.c;
+	else
+		echo "Ex already exist"
+	fi
+}
+
+# Same as the create newEx but for C++
+function newExCpp {
+	if [ ! -z $1 ] && [ ! -f $1.c ] && [ ! -f $1.h ] && [ ! -f $1_test.c ]
+	then
+		touch $1.cpp $1.hpp $1_test.cpp;
+		cat /media/$USER/MIZI/header_file.txt > $1.hpp;
+		cat /media/$USER/MIZI/header_file.txt > $1.cpp;
+		cat /media/$USER/MIZI/header_file.txt > $1_test.cpp;
+		ls;
+		sva $1.cpp $1.hpp $1_test.cpp;
+		svc "Templet Files" $1.cpp $1.hpp $1_test.cpp;
+	else
+		echo "Ex already exist"
+	fi
+}
+
+function myfunc_beckup {
+	if  [ -f ~/.bashrc ]
+	then
+		grep_ret = grep "test" ~/.bashrc
+	else
+		echo "no bashrc file."
+	fi
+}
+
+myfunc_if_exist="$(grep -c 'source ~/.myfuncs' ~/.bashrc)"
+if [ "$myfunc_if_exist" -ne 1 ]; then 
+	echo ".bashrc don't run the local .myfuncs automatically."
+fi
+
+# startup
+###############################################
+echo "Hi Roy. .myfunc is running...";
+tasks;
+cp /media/$USER/MIZI/.vimrc ~;
+cp /media/$USER/MIZI/.myfuncs ~;
+printf "\nThe svn status:\n";
+svstt ~/svn/Proj/src/;
+cddp;
