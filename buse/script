@@ -1,0 +1,27 @@
+cd ~/svn/Proj/src/project/buse/BUSE-master/
+
+modprobe nbd
+sleep 1
+
+gnome-ternimal -e ./busexmp /dev/nbd0 &
+gnome-terminal -e ./buse_test &
+sleep 1
+
+mkfs.ext4 /dev/ndb0
+sleep 1
+
+mount /dev/nbd0 ~/mnt
+
+# to create files freelly need to change owner to the user
+# chown royn:royn ~/nmt;
+
+# for example:
+tree ~ > ~/mnt/1.txt
+echo "plata o plomo" > ~/mnt/2.txt
+
+
+# need to unmout and remout to make shure everything is working
+umount ~/mnt
+mount /dev/nbd0 ~/mnt
+
+# And then check if all the files are back
