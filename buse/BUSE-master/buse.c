@@ -91,17 +91,10 @@ int buse_main(const char* dev_file, const struct buse_operations *aop, void *use
   struct nbd_reply reply;
   void *chunk;
 
-  fprintf(stdout, "Before Socket\n");
-
   err = socketpair(AF_UNIX, SOCK_STREAM, 0, sp);
   assert(!err);
 
-  fprintf(stdout, "After Socket\n");
-
   nbd = open(dev_file, O_RDWR);
-
-  fprintf(stdout, "After nbd\n");
-
   if (nbd == -1) {
     fprintf(stderr, 
         "Failed to open `%s': %s\n"
@@ -155,6 +148,7 @@ int buse_main(const char* dev_file, const struct buse_operations *aop, void *use
   /* The parent opens the device file at least once, to make sure the
    * partition table is updated. Then it closes it and starts serving up
    * requests. */
+
   tmp_fd = open(dev_file, O_RDONLY);
   assert(tmp_fd != -1);
   close(tmp_fd);
@@ -166,7 +160,6 @@ int buse_main(const char* dev_file, const struct buse_operations *aop, void *use
   reply.error = htonl(0);
 
   while ((bytes_read = read(sk, &request, sizeof(request))) > 0) {
-    fprintf(stderr, "In the While....");
     assert(bytes_read == sizeof(request));
     memcpy(reply.handle, request.handle, sizeof(reply.handle));
     reply.error = htonl(0);

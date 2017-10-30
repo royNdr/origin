@@ -74,7 +74,6 @@ static struct buse_operations aop = {
 
 int main(int argc, char *argv[])
 {
-  int retVal = 0;
   if (argc != 2)
   {
     fprintf(stderr, 
@@ -87,7 +86,5 @@ int main(int argc, char *argv[])
 
   data = malloc(aop.size);
 
-  retVal = buse_main(argv[1], &aop, (void *)&xmpl_debug);
-  fprintf(stdout, "The END\n");
-  return retVal; 
+  return buse_main(argv[1], &aop, (void *)&xmpl_debug);
 }
