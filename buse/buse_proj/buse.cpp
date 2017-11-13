@@ -123,36 +123,18 @@ Buse::~Buse()
 {
 }
 
-static void PrintRepaly(const struct nbd_replay& rep_)
+static void PrintReply(const struct nbd_reply& rep_)
 {
-    std::cout << "*REPLAY* MAGIC: " << rep_.magic << "ERROR: " << rep_.error
-        << "HANDLE: " << req_.handle << std::endl;
+    std::cout << "*REPLAY* MAGIC: " << ntohl(rep_.magic) << " ERROR: " << ntohl(rep_.error)
+        << " HANDLE: " << rep_.handle << std::endl;
 }
 
-static void PrintReques(const struct nbd_request& req_)
+static void PrintRequest(const struct nbd_request& req_)
 {
-    std::cout << "*REQEST* MAGIC: " << rep_.magic << "TYPE: " << rep_.type
-        << "HANDLE: " << req_.handle << " FROM: " << req.from
-        << " LEN: " << req_.len << std::endl;
+    std::cout << "*REQEST* MAGIC: " << ntohl(req_.magic) << " TYPE: " << ntohl(req_.type)
+        << " HANDLE: " << req_.handle << " FROM: " << be64toh(req_.from)
+        << " LEN: " << ntohl(req_.len) << std::endl;
 }
-
-struct nbd_request {
-	__be32 magic;
-	__be32 type;	/* == READ || == WRITE 	*/
-	char handle[8];
-	__be64 from;
-	__be32 len;
-} __attribute__((packed));
-
-/*
- * This is the reply packet that nbd-server sends back to the client after
- * it has completed an I/O request (or an error occurs).
- */
-struct nbd_reply {
-	__be32 magic;
-	__be32 error;		/* 0 = ok, else error	*/
-	char handle[8];		/* handle you got from request	*/
-};
 
 void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
 {
@@ -167,6 +149,14 @@ void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
 
 	ssize_t bytes_count = 0;
 	boost::shared_ptr<char>  chunk(new char[len + sizeof(reply)]);
+
+    std::cout << std::endl;
+    std::cout << "*********************" << std::endl;
+    PrintRequest(request_);
+    std::cout << "*********************" << std::endl;
+    PrintReply(reply);
+    std::cout << "*********************" << std::endl;
+    std::cout << std::endl;
 
 	switch (ntohl(request_.type))
 	{
