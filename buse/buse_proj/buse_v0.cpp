@@ -37,26 +37,31 @@ Buse::Buse(std::string devFile_, std::string targetFile_)
 
 void Buse::Start()
 {
+	std::cout << "Starting Buse...." << std::endl;
 	int sp[2];
 	int err = socketpair(AF_UNIX, SOCK_STREAM, 0, sp);
-    assert(!err);
+	if(err)
+	{
+		//TODO throw exeption
+		std::cout << "socketpair err" << std::endl;
+		assert(!err);
+	}
+	std::cout << "Socket: " << sp[0]  << ", " << sp[1] << std::endl;
 
 	int nbd = open(m_devFile.c_str(), O_RDWR);
 	if (-1 == nbd)
-    {   //TODO throw exeption
+	{
+		//TODO throw exeption
 		std::cout << "Failed open devFile - " << m_devFile <<  "." << std::endl;
 		assert(nbd == -1);
 	}
 
+	std::cout << "After NBd" << std::endl;
 	// set things up
-	//err = ioctl(nbd, NBD_SET_BLKSIZE, 1024);
-	//assert(-1 != err);
-	//err = ioctl(nbd, NBD_SET_SIZE_BLOCKS, 1024 * 128);
-	//assert(-1 != err);
-
-	err = ioctl(nbd, NBD_SET_SIZE, 1024 * 128 * 1024);
+	err = ioctl(nbd, NBD_SET_BLKSIZE, 1024);
 	assert(-1 != err);
-
+	err = ioctl(nbd, NBD_SET_SIZE_BLOCKS, 1024 * 128);
+	assert(-1 != err);
 	err = ioctl(nbd, NBD_CLEAR_SOCK);
 	assert(-1 != err);
 
@@ -65,7 +70,6 @@ void Buse::Start()
 	if(!fork())
 	{
 		close(sp[0]);
-
 		// The chiled continue to set things up
 		std::cout << "In the fork chiled. thread id: "
 			<< boost::this_thread::get_id()
@@ -74,10 +78,6 @@ void Buse::Start()
 
 		int err = ioctl(nbd, NBD_SET_SOCK, sp[1]);
 		assert(-1 != err);
-#if defined NBD_SET_FLAGS && defined NBD_FLAG_SEND_TRIM
-        err = ioctl(nbd, NBD_SET_FLAGS, NBD_FLAG_SEND_TRIM);
-        assert(-1 != err);
-#endif
 
 		err = ioctl(nbd, NBD_DO_IT);
 		if (-1 == err)
@@ -109,9 +109,9 @@ void Buse::Start()
 	{
 		assert(bytes_read == sizeof(request));
 
-		//boost::thread t(&ilrd::Buse::NBDRequestHandler,this, request, sp[0]);
-        NBDRequestHandler(request, sp[0]);
-		//t.detach();
+		std::cout << "inside read loop" << std::endl;
+		boost::thread t(&ilrd::Buse::NBDRequestHandler,this, request, sp[0]);
+		t.detach();
 	}
 
 	std::cout << "Before Sleep" << std::endl;
@@ -123,44 +123,19 @@ Buse::~Buse()
 {
 }
 
-static void PrintRepaly(const struct nbd_replay& rep_)
-{
-    std::cout << "*REPLAY* MAGIC: " << rep_.magic << "ERROR: " << rep_.error
-        << "HANDLE: " << req_.handle << std::endl;
-}
-
-static void PrintReques(const struct nbd_request& req_)
-{
-    std::cout << "*REQEST* MAGIC: " << rep_.magic << "TYPE: " << rep_.type
-        << "HANDLE: " << req_.handle << " FROM: " << req.from
-        << " LEN: " << req_.len << std::endl;
-}
-
-struct nbd_request {
-	__be32 magic;
-	__be32 type;	/* == READ || == WRITE 	*/
-	char handle[8];
-	__be64 from;
-	__be32 len;
-} __attribute__((packed));
-
-/*
- * This is the reply packet that nbd-server sends back to the client after
- * it has completed an I/O request (or an error occurs).
- */
-struct nbd_reply {
-	__be32 magic;
-	__be32 error;		/* 0 = ok, else error	*/
-	char handle[8];		/* handle you got from request	*/
-};
 
 void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
 {
+    std::cout << "Thread Starting Work.."
+        << boost::this_thread::get_id() << std::endl;
+
+	std::cout << "handling reqest..." << std::endl;
+
 	struct nbd_reply reply;
     reply.magic = htonl(NBD_REPLY_MAGIC);
     reply.error = htonl(0);
-    memcpy(reply.handle, request_.handle, sizeof(reply.handle));
     
+
 	int len = ntohl(request_.len);
 	uint64_t  from = be64toh(request_.from);
 	assert(request_.magic == htonl(NBD_REQUEST_MAGIC));
@@ -168,11 +143,13 @@ void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
 	ssize_t bytes_count = 0;
 	boost::shared_ptr<char>  chunk(new char[len + sizeof(reply)]);
 
+	std::cout << "Reqest Type:" << request_.type << std::endl;
 	switch (ntohl(request_.type))
 	{
 		case NBD_CMD_READ:
+			std::cout << "Request for read of size " << len << std::endl;
 
-			// put the replay stuct before the data-
+			// Add the replay stuct after it-
             memcpy(chunk.get(), &reply, sizeof(reply));
 
 			// Read from file
@@ -185,7 +162,6 @@ void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
 			assert(bytes_count == (len + static_cast<int>(sizeof(reply))));
 
 			std::cout << "bytes read reply= " << len << std::endl;
-
 			break;
 
 		case NBD_CMD_WRITE:
@@ -205,14 +181,8 @@ void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
 			std::cout << "bytes write reply= " << bytes_count << std::endl;
 			break;
 
-		case NBD_CMD_TRIM:
-			// reply-
-			bytes_count = write(sk_, &reply, sizeof(reply));
-			std::cout << "bytes write reply= " << bytes_count << std::endl;
-			break;
-            
 		default:
-			std::cout << "Bad Request Type- " << request_.type << std::endl;
+			std::cout << "Bad Request Type." << std::endl;
 			assert(0);
 	}
 }

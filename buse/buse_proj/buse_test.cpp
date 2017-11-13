@@ -23,7 +23,7 @@ void testBuse()
 {
 	std::cout << " ------- START TESTING --------- " << std::endl;
 
-	Buse b("/dev/nbd0", "/tmp/fs_file");
+	Buse b("/dev/nbd0", "fs_file");
 	b.Start();
 
 	std::cout << " -------- END TESTING ---------- " << std::endl;
