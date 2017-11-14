@@ -17,21 +17,25 @@
 namespace ilrd
 {
 
+// Fwrd declerations *************************************
+inline void PrintReply(const struct nbd_reply& rep_);
+inline void PrintRequest(const struct nbd_request& req_);
+inline int Write(int sk_, char *buff_, size_t count_);
+inline int Read(int sk_, char *buff_, size_t count_);
+//*********************************************************
+
 Buse::Buse(std::string devFile_, std::string targetFile_)
 	: m_targetFilePath(targetFile_)
 	, m_devFile(devFile_)
 	, m_storageFile(targetFile_.c_str(), std::ios::trunc | std::ios::in | std::ios::out) //file stream are RAII
 {
+    m_storageFile.resize_file(targetFile_.c_str(),
     if (!m_storageFile.is_open())
     {
 	    std::cout << "Fail to open file " << targetFile_ << std::endl;
         m_storageFile.clear();
         m_storageFile.open(targetFile_.c_str(), std::ios::out);
 	    std::cout << "status: " << m_storageFile.is_open() << std::endl;
-    }
-    else
-    {
-	    std::cout << "Success!" << std::endl;
     }
 }
 
@@ -48,7 +52,7 @@ void Buse::Start()
 		assert(nbd == -1);
 	}
 
-	// set things up
+	//set things up
 	//err = ioctl(nbd, NBD_SET_BLKSIZE, 1024);
 	//assert(-1 != err);
 	//err = ioctl(nbd, NBD_SET_SIZE_BLOCKS, 1024 * 128);
@@ -59,7 +63,6 @@ void Buse::Start()
 
 	err = ioctl(nbd, NBD_CLEAR_SOCK);
 	assert(-1 != err);
-
 
 	// This thread will run the NBD DO_IT...
 	if(!fork())
@@ -78,7 +81,6 @@ void Buse::Start()
         err = ioctl(nbd, NBD_SET_FLAGS, NBD_FLAG_SEND_TRIM);
         assert(-1 != err);
 #endif
-
 		err = ioctl(nbd, NBD_DO_IT);
 		if (-1 == err)
 		{
@@ -105,10 +107,8 @@ void Buse::Start()
 	struct nbd_request request;
 	int bytes_read = 0;
 
-	while((bytes_read = read(sp[0], &request, sizeof(request))))
+	while(0 == (bytes_read = Read(sp[0], (char *)&request, sizeof(request))))
 	{
-		assert(bytes_read == sizeof(request));
-
 		//boost::thread t(&ilrd::Buse::NBDRequestHandler,this, request, sp[0]);
         NBDRequestHandler(request, sp[0]);
 		//t.detach();
@@ -121,19 +121,6 @@ void Buse::Start()
 
 Buse::~Buse()
 {
-}
-
-static void PrintReply(const struct nbd_reply& rep_)
-{
-    std::cout << "*REPLAY* MAGIC: " << ntohl(rep_.magic) << " ERROR: " << ntohl(rep_.error)
-        << " HANDLE: " << rep_.handle << std::endl;
-}
-
-static void PrintRequest(const struct nbd_request& req_)
-{
-    std::cout << "*REQEST* MAGIC: " << ntohl(req_.magic) << " TYPE: " << ntohl(req_.type)
-        << " HANDLE: " << req_.handle << " FROM: " << be64toh(req_.from)
-        << " LEN: " << ntohl(req_.len) << std::endl;
 }
 
 void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
@@ -171,8 +158,7 @@ void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
 			m_storageFile.sync(); // to flash the buffer
 
 			// Return: reply + actual data read-
-			bytes_count = write(sk_, chunk.get(), sizeof(reply) + len);
-			assert(bytes_count == (len + static_cast<int>(sizeof(reply))));
+			bytes_count = Write(sk_, chunk.get(), sizeof(reply) + len);
 
 			std::cout << "bytes read reply= " << len << std::endl;
 
@@ -182,22 +168,23 @@ void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
 			std::cout << "Request for write of size " << len << std::endl;
 
 			// Read the actual data from socket-
-			bytes_count = read(sk_, chunk.get(), len);
-			assert(bytes_count == len);
+			bytes_count = Read(sk_, chunk.get(), len);
 
 			// Write to destenation file
 			m_storageFile.seekg(from, std::ios::beg);
 			m_storageFile.write(chunk.get(), len);
+			std::cout << "writing to file " << len << "bytes." << std::endl;
+			std::cout << "file status " << m_storageFile.good? "GOOD":"BAD" << std::endl;
 			m_storageFile.sync(); // to flash the buffer
 			
 			// reply-
-			bytes_count = write(sk_, &reply, sizeof(reply));
+			bytes_count = Write(sk_, (char *)&reply, sizeof(reply));
 			std::cout << "bytes write reply= " << bytes_count << std::endl;
 			break;
 
 		case NBD_CMD_TRIM:
 			// reply-
-			bytes_count = write(sk_, &reply, sizeof(reply));
+			bytes_count = Write(sk_, (char *)&reply, sizeof(reply));
 			std::cout << "bytes write reply= " << bytes_count << std::endl;
 			break;
             
@@ -205,6 +192,51 @@ void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
 			std::cout << "Bad Request Type- " << request_.type << std::endl;
 			assert(0);
 	}
+}
+
+inline void PrintReply(const struct nbd_reply& rep_)
+{
+    std::cout << "*REPLAY* MAGIC: " << ntohl(rep_.magic) << " ERROR: " << ntohl(rep_.error)
+        << " HANDLE: " << rep_.handle << std::endl;
+}
+
+inline void PrintRequest(const struct nbd_request& req_)
+{
+    std::cout << "*REQEST* MAGIC: " << ntohl(req_.magic) << " TYPE: " << ntohl(req_.type)
+        << " HANDLE: " << req_.handle << " FROM: " << be64toh(req_.from)
+        << " LEN: " << ntohl(req_.len) << std::endl;
+}
+
+inline int Write(int sk_, char *buff_, size_t count_)
+{
+    int bytes_written;
+
+    while (count_ > 0)
+    {
+        bytes_written = write(sk_, buff_, count_);
+        assert( bytes_written > 0);
+        buff_ += bytes_written;
+        count_ -= bytes_written;
+    }
+    assert(count_ == 0);
+
+    return 0;
+}
+
+inline int Read(int sk_, char *buff_, size_t count_)
+{
+    int bytes_read;
+
+    while (count_ > 0)
+    {
+        bytes_read = read(sk_, buff_, count_);
+        assert( bytes_read > 0);
+        buff_ += bytes_read;
+        count_ -= bytes_read;
+    }
+    assert(count_ == 0);
+
+    return 0;
 }
 
 }// ilrd
