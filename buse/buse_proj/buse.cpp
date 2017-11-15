@@ -6,6 +6,8 @@
 #include <iostream>
 #include <cassert>
 #include <boost/shared_ptr.hpp>
+#include <unistd.h>         // truncatge (Remove?)
+#include <sys/types.h>      // truncatge (Remove?)
 #include <sys/socket.h>     //socketpair
 #include <fcntl.h>	        //open
 #include <sys/ioctl.h>      //ioctl
@@ -29,7 +31,14 @@ Buse::Buse(std::string devFile_, std::string targetFile_)
 	, m_devFile(devFile_)
 	, m_storageFile(targetFile_.c_str(), std::ios::trunc | std::ios::in | std::ios::out) //file stream are RAII
 {
-    m_storageFile.resize_file(targetFile_.c_str(),
+    //int err = truncate(targetFile_.c_str(), 1024*128);
+    //std::cout << "trunbcate error " << err << std::endl;
+    m_storageFile.seekp(1024 * 1024 * 128);
+    m_storageFile.write("", 1);
+    m_storageFile.seekp(0);
+
+    //assert(0 == err);
+
     if (!m_storageFile.is_open())
     {
 	    std::cout << "Fail to open file " << targetFile_ << std::endl;
@@ -58,7 +67,7 @@ void Buse::Start()
 	//err = ioctl(nbd, NBD_SET_SIZE_BLOCKS, 1024 * 128);
 	//assert(-1 != err);
 
-	err = ioctl(nbd, NBD_SET_SIZE, 1024 * 128 * 1024);
+	err = ioctl(nbd, NBD_SET_SIZE, 1024 * 1024 * 128);
 	assert(-1 != err);
 
 	err = ioctl(nbd, NBD_CLEAR_SOCK);
@@ -81,7 +90,7 @@ void Buse::Start()
         err = ioctl(nbd, NBD_SET_FLAGS, NBD_FLAG_SEND_TRIM);
         assert(-1 != err);
 #endif
-		err = ioctl(nbd, NBD_DO_IT);
+		err = ioctl(nbd, NBD_DO_IT); //Blocking....
 		if (-1 == err)
 		{
 			std::cout << "DoIt err:" << err << " errno:" << strerror(errno) << std::endl; 
@@ -107,10 +116,17 @@ void Buse::Start()
 	struct nbd_request request;
 	int bytes_read = 0;
 
-	while(0 == (bytes_read = Read(sp[0], (char *)&request, sizeof(request))))
+	while((bytes_read = read(sp[0], (char *)&request, sizeof(request))))
 	{
-		//boost::thread t(&ilrd::Buse::NBDRequestHandler,this, request, sp[0]);
+        std::cout << std::endl;
+        std::cout << "*********************" << std::endl;
+        PrintRequest(request);
+        std::cout << "*********************" << std::endl;
+        /*PrintReply(reply);
+        std::cout << "*********************" << std::endl; */
+
         NBDRequestHandler(request, sp[0]);
+		//boost::thread t(&ilrd::Buse::NBDRequestHandler,this, request, sp[0]);
 		//t.detach();
 	}
 
@@ -136,31 +152,24 @@ void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
 
 	ssize_t bytes_count = 0;
 	boost::shared_ptr<char>  chunk(new char[len + sizeof(reply)]);
-
-    std::cout << std::endl;
-    std::cout << "*********************" << std::endl;
-    PrintRequest(request_);
-    std::cout << "*********************" << std::endl;
-    PrintReply(reply);
-    std::cout << "*********************" << std::endl;
-    std::cout << std::endl;
+	boost::shared_ptr<char>  chunk2(new char[len + sizeof(reply)]);
 
 	switch (ntohl(request_.type))
 	{
 		case NBD_CMD_READ:
+			std::cout << "Request for read of size " << len << std::endl;
 
 			// put the replay stuct before the data-
             memcpy(chunk.get(), &reply, sizeof(reply));
 
 			// Read from file
 			m_storageFile.seekg(from, std::ios::beg);
-			m_storageFile.read(chunk.get(), len);
+			m_storageFile.read(chunk2.get(), len);
 			m_storageFile.sync(); // to flash the buffer
 
 			// Return: reply + actual data read-
 			bytes_count = Write(sk_, chunk.get(), sizeof(reply) + len);
 
-			std::cout << "bytes read reply= " << len << std::endl;
 
 			break;
 
@@ -174,7 +183,7 @@ void Buse::NBDRequestHandler(struct nbd_request request_, int sk_)
 			m_storageFile.seekg(from, std::ios::beg);
 			m_storageFile.write(chunk.get(), len);
 			std::cout << "writing to file " << len << "bytes." << std::endl;
-			std::cout << "file status " << m_storageFile.good? "GOOD":"BAD" << std::endl;
+			std::cout << "file status " << m_storageFile.good() << std::endl;
 			m_storageFile.sync(); // to flash the buffer
 			
 			// reply-
@@ -220,7 +229,7 @@ inline int Write(int sk_, char *buff_, size_t count_)
     }
     assert(count_ == 0);
 
-    return 0;
+    return count_;
 }
 
 inline int Read(int sk_, char *buff_, size_t count_)
@@ -230,13 +239,14 @@ inline int Read(int sk_, char *buff_, size_t count_)
     while (count_ > 0)
     {
         bytes_read = read(sk_, buff_, count_);
+        std::cout << "READ_READ bytes read: " << bytes_read << std::endl;
         assert( bytes_read > 0);
         buff_ += bytes_read;
         count_ -= bytes_read;
     }
     assert(count_ == 0);
 
-    return 0;
+    return count_;
 }
 
 }// ilrd
