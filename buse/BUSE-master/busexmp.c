@@ -16,14 +16,20 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
-
+#define _XOPEN_SOURCE 600
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "buse.h"
 
 static void *data;
+static int fd;
 static int xmpl_debug = 1;
 
 static int xmp_read(void *buf, u_int32_t len, u_int64_t offset, void *userdata)
@@ -39,6 +45,14 @@ static int xmp_write(const void *buf, u_int32_t len, u_int64_t offset, void *use
   if (*(int *)userdata)
     fprintf(stderr, "W - %lu, %u\n", offset, len);
   memcpy((char *)data + offset, buf, len);
+  
+  if(fd)
+  {
+    fprintf(stderr, "writing to file\n");
+    lseek(fd, offset, SEEK_SET);
+    write(fd, buf, len);
+  }
+
   return 0;
 }
 
@@ -74,6 +88,8 @@ static struct buse_operations aop = {
 
 int main(int argc, char *argv[])
 {
+  int err = 0;
+
   if (argc != 2)
   {
     fprintf(stderr, 
@@ -85,6 +101,12 @@ int main(int argc, char *argv[])
   }
 
   data = malloc(aop.size);
+  fd = open("/tmp/buse_diskfile", O_CREAT | O_RDWR, S_IRWXU | S_IRWXG | S_IROTH);
+  assert(fd != -1);
+  err = ftruncate(fd, aop.size);
+  assert(0 == err);
+
+  close(fd);
 
   return buse_main(argv[1], &aop, (void *)&xmpl_debug);
 }

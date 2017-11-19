@@ -184,6 +184,9 @@ int buse_main(const char* dev_file, const struct buse_operations *aop, void *use
         /* If user not specified read operation, return EPERM error */
         reply.error = htonl(EPERM);
       }
+      fprintf(stderr, "$$$$ ");
+      fprintf(stderr, "%d" , *((int *)chunk));
+      fprintf(stderr, " $$$$ ");
       write_all(sk, (char*)&reply, sizeof(struct nbd_reply));
       write_all(sk, (char*)chunk, len);
 
