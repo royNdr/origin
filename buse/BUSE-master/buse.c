@@ -134,7 +134,7 @@ int buse_main(const char* dev_file, const struct buse_operations *aop, void *use
 #endif
     else{
       err = ioctl(nbd, NBD_DO_IT);
-      fprintf(stderr, "nbd device terminated with code %d\n", err);
+      fprintf(stderr, "NBD device terminated with code %d\n", err);
       if (err == -1)
 	fprintf(stderr, "%s\n", strerror(errno));
     }

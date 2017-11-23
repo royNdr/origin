@@ -1,2 +1,4 @@
 *.o
 *.out
+*.a
+buse/BUSE-master/buse_diskfile

@@ -16,7 +16,7 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
-#define _XOPEN_SOURCE 600
+#define _XOPEN_SOURCE 800
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,7 +29,7 @@
 #include "buse.h"
 
 static void *data;
-static int fd;
+static int fd_s;
 static int xmpl_debug = 1;
 
 static int xmp_read(void *buf, u_int32_t len, u_int64_t offset, void *userdata)
@@ -45,12 +45,16 @@ static int xmp_write(const void *buf, u_int32_t len, u_int64_t offset, void *use
   if (*(int *)userdata)
     fprintf(stderr, "W - %lu, %u\n", offset, len);
   memcpy((char *)data + offset, buf, len);
-  
-  if(fd)
+
+  write(fd_s, "T\n", sizeof("T\n"));
+ 
+  if(fd_s)
   {
-    fprintf(stderr, "writing to file\n");
-    lseek(fd, offset, SEEK_SET);
-    write(fd, buf, len);
+    int byte_writen = 0;
+    fprintf(stderr, "writing to file %d", fd_s);
+    //lseek(fd, offset, SEEK_SET);
+    //byte_writen = write(fd, "Y\n", sizeof("Y\n"));
+    fprintf(stderr, " %d bytes.\n", byte_writen);
   }
 
   return 0;
@@ -101,12 +105,16 @@ int main(int argc, char *argv[])
   }
 
   data = malloc(aop.size);
-  fd = open("/tmp/buse_diskfile", O_CREAT | O_RDWR, S_IRWXU | S_IRWXG | S_IROTH);
-  assert(fd != -1);
-  err = ftruncate(fd, aop.size);
+
+  fd_s = open("buse_diskfile", O_CREAT|O_RDWR|O_TRUNC, S_IRWXU|S_IRWXG|S_IROTH);
+  assert(fd_s != -1);
+  err = ftruncate(fd_s, 100/*aop.size*/);
+  lseek(fd_s, 0, SEEK_SET);
+  write(fd_s, "R\n", sizeof("R\n"));
+
   assert(0 == err);
 
-  close(fd);
+  close(fd_s);
 
   return buse_main(argv[1], &aop, (void *)&xmpl_debug);
 }
